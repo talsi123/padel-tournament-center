@@ -13,6 +13,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Padel Tournament Center</title>
+    <link rel="manifest" href="manifest.json">
+    
     <!-- Web App & Standalone Mobile Meta Tags -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1682,6 +1684,16 @@
         document.getElementById('archive-view-screen').classList.add('hidden');
         document.getElementById('vault-screen').classList.remove('hidden');
     }
+</script>
+
+    <script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js').catch((err) => {
+        console.log('Service Worker registration failed:', err);
+      });
+    });
+  }
 </script>
 </body>
 </html>
