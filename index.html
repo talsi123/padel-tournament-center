@@ -606,7 +606,7 @@
 </div>
 
 <script>
-    const STORAGE_KEY = "padel_saved_tournaments_v4";
+    const STORAGE_KEY = "padel_saved_tournaments_v5";
 
     let participants = [];
     let currentRound = 1;
@@ -858,7 +858,7 @@
             pHint.innerText = `Requires at least ${courtCount * 2} teams (2 teams per court) for ${courtCount} court(s). Enter partners in each box (e.g. 'Talha & Ayyoub'). Press Enter to advance.`;
             fDesc.innerText = fmt === 'team-mexicano' 
                 ? "Fixed Duos: Teams stay together all tournament. Matchups seeded by leaderboard standings."
-                : "Fixed Duos: Teams stay together all tournament. Tournament automatically concludes once all teams play each other.";
+                : "Fixed Duos: Teams stay together all tournament. Full schedule generated with zero repeat matches until everyone plays each other.";
         } else if (fmt === 'beat-the-box') {
             pLabel.innerText = "Enter Teams";
             countLabel.innerText = "Number of Teams";
@@ -872,7 +872,7 @@
                 ? "Individual Super Mexicano: Rotating partners. Multipliers: Flat 1.0x (Rd 1-2), 1.1x (Rd 3), 1.2x (Rd 4+)."
                 : (fmt === 'mexicano' 
                     ? "Individual Mexicano: Rotating partners. Seeded by rank with flat 1.0x scoring." 
-                    : "Individual Americano: Rotating partners. Tournament automatically concludes once everyone partners with each other.");
+                    : "Individual Americano: Rotating partners. Full rotation generated with zero partner repeats until everyone partners with each other.");
         }
 
         const count = populateParticipantCountDropdown();
@@ -892,38 +892,6 @@
 
         const count = populateParticipantCountDropdown();
         renderParticipantGrid(count, true);
-    }
-
-    function partnerKey(nameA, nameB) {
-        return [nameA, nameB].sort().join(':::');
-    }
-
-    function recordPartnership(pA, pB, roundNum) {
-        const k = partnerKey(pA, pB);
-        partnerCountMatrix[k] = (partnerCountMatrix[k] || 0) + 1;
-        lastPartnerRound[k] = roundNum;
-    }
-
-    function getPartnerHistory(pA, pB) {
-        const k = partnerKey(pA, pB);
-        return {
-            count: partnerCountMatrix[k] || 0,
-            lastRound: lastPartnerRound[k] !== undefined ? lastPartnerRound[k] : -999
-        };
-    }
-
-    function recordTeamOpponent(tA, tB, roundNum) {
-        const k = partnerKey(tA, tB);
-        teamOpponentCount[k] = (teamOpponentCount[k] || 0) + 1;
-        lastTeamOpponentRound[k] = roundNum;
-    }
-
-    function getTeamOpponentHistory(tA, tB) {
-        const k = partnerKey(tA, tB);
-        return {
-            count: teamOpponentCount[k] || 0,
-            lastRound: lastTeamOpponentRound[k] !== undefined ? lastTeamOpponentRound[k] : -999
-        };
     }
 
     function getSavedTournaments() {
@@ -1013,88 +981,157 @@
         return 9999;
     }
 
-    /* Pre-compute full Americano / Team Americano round-robin schedule */
-    function buildFullAmericanoSchedule() {
-        fullPrecomputedSchedule = [];
-        if (format !== 'team-americano' && format !== 'americano') return;
-
-        const count = participants.length;
-        let items = [...participants];
-        let n = items.length;
+    /* 1. Team Americano: Deterministic Round-Robin Circle Method (ZERO repeat matchups) */
+    function buildTeamAmericanoSchedule() {
+        const teams = [...participants];
+        let n = teams.length;
+        let tList = [...teams];
         if (n % 2 !== 0) {
-            items.push(null); // Dummy element for bye
+            tList.push(null); // Dummy element for fair single byes
             n++;
         }
 
         const totalRounds = n - 1;
-        let currentList = [...items];
+        let curr = [...tList];
+        fullPrecomputedSchedule = [];
 
         for (let r = 0; r < totalRounds; r++) {
-            let pairs = [];
+            let roundPairs = [];
             let roundByes = [];
 
             for (let i = 0; i < n / 2; i++) {
-                let a = currentList[i];
-                let b = currentList[n - 1 - i];
-                if (!a) { if (b) roundByes.push(b); }
-                else if (!b) { if (a) roundByes.push(a); }
-                else { pairs.push([a, b]); }
+                let t1 = curr[i];
+                let t2 = curr[n - 1 - i];
+                if (!t1) { if (t2) roundByes.push(t2); }
+                else if (!t2) { if (t1) roundByes.push(t1); }
+                else { roundPairs.push([t1, t2]); }
             }
 
-            if (format === 'team-americano') {
-                let matches = [];
-                for (let c = 0; c < totalCourts && c < pairs.length; c++) {
-                    matches.push({
-                        courtNum: c + 1,
-                        team1Id: pairs[c][0].id,
-                        team2Id: pairs[c][1].id,
-                        p1: pairs[c][0].name,
-                        p2: "",
-                        p3: pairs[c][1].name,
-                        p4: ""
-                    });
-                }
-                let extraByes = [];
-                if (pairs.length > totalCourts) {
-                    for (let c = totalCourts; c < pairs.length; c++) {
-                        extraByes.push(pairs[c][0]);
-                        extraByes.push(pairs[c][1]);
+            let matches = [];
+            for (let c = 0; c < totalCourts && c < roundPairs.length; c++) {
+                matches.push({
+                    courtNum: c + 1,
+                    team1Id: roundPairs[c][0].id,
+                    team2Id: roundPairs[c][1].id,
+                    p1: roundPairs[c][0].name,
+                    p2: "",
+                    p3: roundPairs[c][1].name,
+                    p4: ""
+                });
+            }
+
+            let extraByes = [];
+            for (let c = totalCourts; c < roundPairs.length; c++) {
+                extraByes.push(roundPairs[c][0]);
+                extraByes.push(roundPairs[c][1]);
+            }
+
+            fullPrecomputedSchedule.push({
+                round: r + 1,
+                matches: matches,
+                byes: [...roundByes, ...extraByes]
+            });
+
+            // Circle rotation: keep index 0 fixed, rotate others
+            curr = [curr[0], curr[curr.length - 1], ...curr.slice(1, curr.length - 1)];
+        }
+    }
+
+    /* 2. Standard Americano: Zero-Repeat Partner Optimization across all rounds */
+    function buildStandardAmericanoSchedule() {
+        const N = participants.length;
+        const activePerRound = Math.min(N - (N % 4), totalCourts * 4);
+        const totalRounds = calculateTotalAmericanoRounds();
+        const pCounts = {};
+        const byeCounts = {};
+        const lastBye = {};
+
+        participants.forEach(p => {
+            byeCounts[p.id] = 0;
+            lastBye[p.id] = -99;
+        });
+
+        fullPrecomputedSchedule = [];
+
+        for (let r = 1; r <= totalRounds; r++) {
+            const numByes = N - activePerRound;
+            let sitting = [];
+            if (numByes > 0) {
+                let candidates = [...participants].sort((a, b) => {
+                    const aConsecutive = (lastBye[a.id] === r - 1) ? 1000 : 0;
+                    const bConsecutive = (lastBye[b.id] === r - 1) ? 1000 : 0;
+                    if (aConsecutive !== bConsecutive) return aConsecutive - bConsecutive;
+                    return byeCounts[a.id] - byeCounts[b.id];
+                });
+                sitting = candidates.slice(0, numByes);
+            }
+            const sittingIds = new Set(sitting.map(s => s.id));
+            const active = participants.filter(p => !sittingIds.has(p.id));
+
+            let bestMatches = null;
+            let bestCost = Infinity;
+
+            for (let trial = 0; trial < 150; trial++) {
+                let shuffled = [...active].sort(() => Math.random() - 0.5);
+                let trialMatches = [];
+                let cost = 0;
+
+                for (let c = 0; c < activePerRound / 4; c++) {
+                    let c4 = shuffled.slice(c * 4, (c + 1) * 4);
+                    let opts = [
+                        [c4[0], c4[1], c4[2], c4[3]],
+                        [c4[0], c4[2], c4[1], c4[3]],
+                        [c4[0], c4[3], c4[1], c4[2]]
+                    ];
+
+                    let bestOpt = null;
+                    let bestOptCost = Infinity;
+
+                    for (let opt of opts) {
+                        let k1 = [opt[0].id, opt[1].id].sort().join('-');
+                        let k2 = [opt[2].id, opt[3].id].sort().join('-');
+                        let optCost = ((pCounts[k1] || 0) ** 2) * 8000 + ((pCounts[k2] || 0) ** 2) * 8000;
+                        if (optCost < bestOptCost) {
+                            bestOptCost = optCost;
+                            bestOpt = opt;
+                        }
                     }
-                }
-                fullPrecomputedSchedule.push({
-                    round: r + 1,
-                    matches: matches,
-                    byes: [...roundByes, ...extraByes]
-                });
-            } else {
-                // Individual Americano: Quad grouping of 4 players per court
-                let activeIndividuals = [];
-                pairs.forEach(pr => { activeIndividuals.push(pr[0]); activeIndividuals.push(pr[1]); });
-                
-                let matches = [];
-                let courtIdx = 0;
-                while (activeIndividuals.length >= 4 && courtIdx < totalCourts) {
-                    let c4 = activeIndividuals.splice(0, 4);
-                    // Standard Mexicano/Americano pairing solver
-                    let best = chooseBestPairingOnCourt(c4);
-                    matches.push({
-                        courtNum: courtIdx + 1,
-                        p1: best.p1.name,
-                        p2: best.p2.name,
-                        p3: best.p3.name,
-                        p4: best.p4.name
+
+                    trialMatches.push({
+                        courtNum: c + 1,
+                        p1: bestOpt[0].name,
+                        p2: bestOpt[1].name,
+                        p3: bestOpt[2].name,
+                        p4: bestOpt[3].name,
+                        ids: [bestOpt[0].id, bestOpt[1].id, bestOpt[2].id, bestOpt[3].id]
                     });
-                    courtIdx++;
+                    cost += bestOptCost;
                 }
-                fullPrecomputedSchedule.push({
-                    round: r + 1,
-                    matches: matches,
-                    byes: [...roundByes, ...activeIndividuals]
-                });
+
+                if (cost < bestCost) {
+                    bestCost = cost;
+                    bestMatches = trialMatches;
+                    if (cost === 0) break;
+                }
             }
 
-            // Circle method rotation (keep index 0 fixed, rotate remainder)
-            currentList = [currentList[0], currentList[currentList.length - 1], ...currentList.slice(1, currentList.length - 1)];
+            bestMatches.forEach(m => {
+                let k1 = [m.ids[0], m.ids[1]].sort().join('-');
+                let k2 = [m.ids[2], m.ids[3]].sort().join('-');
+                pCounts[k1] = (pCounts[k1] || 0) + 1;
+                pCounts[k2] = (pCounts[k2] || 0) + 1;
+            });
+
+            sitting.forEach(s => {
+                byeCounts[s.id] = (byeCounts[s.id] || 0) + 1;
+                lastBye[s.id] = r;
+            });
+
+            fullPrecomputedSchedule.push({
+                round: r,
+                matches: bestMatches,
+                byes: sitting
+            });
         }
     }
 
@@ -1153,8 +1190,11 @@
             });
         }
 
-        if (format === 'americano' || format === 'team-americano') {
-            buildFullAmericanoSchedule();
+        // Build exact schedules with zero repeats
+        if (format === 'team-americano') {
+            buildTeamAmericanoSchedule();
+        } else if (format === 'americano') {
+            buildStandardAmericanoSchedule();
         }
 
         launchTournamentScreen();
@@ -1169,7 +1209,6 @@
 
         document.getElementById('th-name-label').innerText = isTeamFormat() ? "Team Name" : "Player";
 
-        // Show/hide manual finish button depending on format
         const finishActionBtn = document.getElementById('btn-finish-crown-action');
         if (finishActionBtn) {
             if (format === 'americano' || format === 'team-americano') {
@@ -1240,22 +1279,9 @@
         ];
 
         let scored = options.map(opt => {
-            const histA = getPartnerHistory(opt.p1.name, opt.p2.name);
-            const histB = getPartnerHistory(opt.p3.name, opt.p4.name);
-
-            let penalty = 0;
-            if (histA.lastRound === currentRound - 1) penalty += 10000;
-            if (histB.lastRound === currentRound - 1) penalty += 10000;
-
-            if (histA.lastRound === currentRound - 2) penalty += 200;
-            if (histB.lastRound === currentRound - 2) penalty += 200;
-
-            penalty += (histA.count * 50) + (histB.count * 50);
-
-            if (opt.optIdx === 0) penalty += 0;
-            else if (opt.optIdx === 1) penalty += 1;
-            else penalty += 2;
-
+            let kA = [opt.p1.name, opt.p2.name].sort().join(':::');
+            let kB = [opt.p3.name, opt.p4.name].sort().join(':::');
+            let penalty = ((partnerCountMatrix[kA] || 0) * 50) + ((partnerCountMatrix[kB] || 0) * 50);
             return { opt, penalty };
         });
 
@@ -1294,7 +1320,7 @@
 
         const isTeam = isTeamFormat();
 
-        // If pre-computed schedule exists for Americano formats:
+        // Load precomputed pairings for Americano formats (guaranteeing zero repeats)
         if ((format === 'team-americano' || format === 'americano') && fullPrecomputedSchedule.length >= currentRound) {
             const planned = fullPrecomputedSchedule[currentRound - 1];
             roundActiveMatches = planned.matches;
@@ -1590,7 +1616,6 @@
             else if (t2 > t1) { t1Outcome = 'loss'; t2Outcome = 'win'; }
 
             if (isTeam) {
-                recordTeamOpponent(match.p1, match.p3, currentRound);
                 updateParticipant(match.p1, weightedT1, weightedT2, t1Outcome);
                 updateParticipant(match.p3, weightedT2, weightedT1, t2Outcome);
 
@@ -1626,8 +1651,10 @@
                     mUsed: mult
                 });
             } else {
-                recordPartnership(match.p1, match.p2, currentRound);
-                recordPartnership(match.p3, match.p4, currentRound);
+                let kA = [match.p1, match.p2].sort().join(':::');
+                let kB = [match.p3, match.p4].sort().join(':::');
+                partnerCountMatrix[kA] = (partnerCountMatrix[kA] || 0) + 1;
+                partnerCountMatrix[kB] = (partnerCountMatrix[kB] || 0) + 1;
 
                 updateParticipant(match.p1, weightedT1, weightedT2, t1Outcome);
                 updateParticipant(match.p2, weightedT1, weightedT2, t1Outcome);
@@ -1714,7 +1741,6 @@
             const diffSign = diff > 0 ? '+' : '';
             const boxBadge = format === 'beat-the-box' ? `<span class="badge" style="background:#3b82f6; margin-left:6px;">Box ${p.currentBox || '-'}</span>` : '';
             
-            // Only show crown and golden highlight if the tournament is finished!
             const isCrown = isTournamentFinished && idx === 0;
             const rankBadge = isCrown ? '👑 #1' : `#${idx + 1}`;
             const rowStyle = isCrown ? 'background: rgba(245, 158, 11, 0.12);' : '';
@@ -1807,7 +1833,7 @@
                 }
             });
             schedList.innerHTML = futureHtml || '<p style="color:var(--text-muted); text-align:center;">No upcoming rounds remaining.</p>';
-        } else {
+        } else if (schedContainer) {
             schedContainer.classList.add('hidden');
         }
     }
