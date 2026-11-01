@@ -112,8 +112,9 @@
             box-sizing: border-box; 
             font-size: 16px; 
         }
-        .form-row { display: flex; gap: 15px; margin-bottom: 10px; }
-        .form-row .form-group { flex: 1; }
+        .form-row { display: flex; gap: 8px; margin-bottom: 10px; width: 100%; }
+        .form-row .form-group { flex: 1; min-width: 0; }
+        .form-row .form-group-lg { flex: 1.4; min-width: 0; }
         button { 
             background: var(--accent); 
             color: white; 
@@ -140,72 +141,6 @@
 
         .hidden { display: none; }
         
-        /* Participant Boxes Grid (4 per row on desktop, responsive for mobile) */
-        .participant-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        }
-        @media (max-width: 820px) {
-            .participant-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-        @media (max-width: 520px) {
-            .participant-grid {
-                grid-template-columns: 1fr;
-            }
-            .form-row {
-                flex-direction: column;
-                gap: 10px;
-            }
-        }
-        .participant-pill {
-            display: flex;
-            align-items: center;
-            background: #334155;
-            border: 1px solid #475569;
-            border-radius: 9999px;
-            padding: 4px 10px 4px 6px;
-            box-sizing: border-box;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        .participant-pill:focus-within {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
-        }
-        .pill-badge {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: #1e293b;
-            color: var(--accent);
-            font-size: 12px;
-            font-weight: bold;
-            margin-right: 8px;
-            flex-shrink: 0;
-            user-select: none;
-        }
-        .pill-input {
-            width: 100%;
-            border: none;
-            background: transparent;
-            color: #ffffff;
-            font-size: 14px;
-            padding: 6px 4px;
-            outline: none;
-            box-sizing: border-box;
-        }
-        .pill-input::placeholder {
-            color: #94a3b8;
-            font-size: 13px;
-        }
-
         /* Toast Notification */
         .toast {
             position: fixed;
@@ -248,6 +183,96 @@
         .tab-btn:hover { background: #2d3748; color: var(--text); }
         .tab-btn.active { background: var(--accent); color: white; }
         .tab-content { width: 100%; }
+
+        
+        /* Participant Boxes Grid (4 per row on desktop, 2 per row on mobile) */
+        .participant-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-top: 10px;
+            margin-bottom: 12px;
+            width: 100%;
+        }
+        .participant-pill {
+            display: flex;
+            align-items: center;
+            background: #334155;
+            border: 1px solid #475569;
+            border-radius: 9999px;
+            padding: 4px 8px 4px 6px;
+            box-sizing: border-box;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            min-width: 0;
+        }
+        .participant-pill:focus-within {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+        }
+        .pill-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: #1e293b;
+            color: var(--accent);
+            font-size: 11px;
+            font-weight: bold;
+            margin-right: 6px;
+            flex-shrink: 0;
+            user-select: none;
+        }
+        .pill-input {
+            width: 100%;
+            min-width: 0;
+            border: none;
+            background: transparent;
+            color: #ffffff;
+            font-size: 13px;
+            padding: 5px 2px;
+            outline: none;
+            box-sizing: border-box;
+        }
+        .pill-input::placeholder {
+            color: #94a3b8;
+            font-size: 12px;
+        }
+
+        /* Mobile Layout: Multiple fields remain side-by-side */
+        @media (max-width: 820px) {
+            .participant-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+        }
+        @media (max-width: 600px) {
+            body { padding: 8px 6px; }
+            .container { padding: 14px 10px; border-radius: 10px; margin-bottom: 15px; }
+            h1 { font-size: 21px !important; margin-bottom: 15px !important; }
+            h2 { font-size: 18px !important; }
+            label { font-size: 12px; margin: 8px 0 2px; }
+            select, input { padding: 8px 6px; font-size: 13px; }
+            .form-row { gap: 6px; margin-bottom: 8px; }
+            .participant-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 6px;
+                margin-top: 6px;
+            }
+            .participant-pill { padding: 3px 6px 3px 4px; }
+            .pill-badge { min-width: 19px; height: 19px; font-size: 10px; margin-right: 4px; }
+            .pill-input { font-size: 12px; padding: 4px 2px; }
+            .format-popover { left: 10px; right: 10px; max-width: none; width: auto; font-size: 12px; padding: 8px 12px; }
+            button { padding: 11px; font-size: 14px; margin-top: 14px; }
+            .tabs { margin-bottom: 14px; }
+            .tab-btn { padding: 10px 4px; font-size: 12px; }
+            .court-block { padding: 10px; margin-top: 12px; }
+            .score-input { width: 50px; padding: 6px; font-size: 16px; }
+            .leaderboard-table th, .leaderboard-table td { padding: 7px 4px; font-size: 12px; }
+            .archive-card { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px; }
+            .archive-actions { width: 100%; justify-content: flex-end; }
+        }
 
         /* Tables & Lists */
         .table-responsive { width: 100%; overflow-x: auto; }
@@ -300,8 +325,9 @@
 <div class="container" id="setup-screen">
     <h1 style="margin-bottom: 25px;">Padel Tournament Center</h1>
     
+    
     <div class="form-row">
-        <div class="form-group">
+        <div class="form-group form-group-lg">
             <label for="tournament-name">Tournament Name</label>
             <input type="text" id="tournament-name" placeholder="Tournament Name">
         </div>
@@ -365,11 +391,11 @@
         <span class="info-icon-btn" id="participant-info-icon" onclick="toggleParticipantBubble(event)" title="Click to view requirements">i</span>
         <div id="participant-bubble" class="format-popover hidden">
             <div class="popover-arrow"></div>
-            <div id="participant-bubble-text">Enter player names in the boxes below. Press Enter to advance to the next player.</div>
+            <div id="participant-bubble-text">Enter names in the rounded boxes below. Press Enter to quickly advance to the next player.</div>
         </div>
     </div>
 
-    <!-- 4 per row horizontal rounded pill boxes -->
+    <!-- 4 per line horizontal rounded pill boxes on desktop, responsive for mobile -->
     <div id="participant-grid" class="participant-grid"></div>
     
     <button onclick="startTournament()">Start New Tournament</button>
@@ -581,6 +607,7 @@
     }
 
     window.addEventListener('DOMContentLoaded', () => {
+        // Set today's date in YYYY-MM-DD for native input
         const today = new Date();
         const yyyy = today.getFullYear();
         const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -600,6 +627,7 @@
         return fmt === 'team-mexicano' || fmt === 'team-americano' || fmt === 'beat-the-box';
     }
 
+    
     function toggleFormatBubble(e) {
         if (e) e.stopPropagation();
         const bubble = document.getElementById('format-bubble');
@@ -616,6 +644,7 @@
         bubble.classList.toggle('hidden');
     }
 
+    // Close format & participant popover bubbles if clicked outside
     document.addEventListener('click', (e) => {
         const fmtBubble = document.getElementById('format-bubble');
         const fmtIcon = document.getElementById('info-icon');
@@ -633,6 +662,7 @@
             }
         }
     });
+
 
     function populateParticipantCountDropdown(desiredCount = null) {
         const fmt = document.getElementById('tournament-type').value;
@@ -710,7 +740,7 @@
                     nextInput.select();
                 }
             } else {
-                // If on the last pill, automatically increment the participant count by 1!
+                // Pressing Enter on the last input increments the count and adds a new pill!
                 const maxAllowed = isTeamFormat() ? 16 : 32;
                 if (total < maxAllowed) {
                     const newCount = total + 1;
@@ -884,6 +914,7 @@
     }
 
     function cleanParticipantName(str) {
+        // Strip leading numbers like "1. ", "1) ", "1 - ", "#1 "
         return str.replace(/^[#\d]+[\.\)\-\:\s]+\s*/, '').trim();
     }
 
@@ -1453,6 +1484,7 @@
         }
     }
 
+    // ---------------- ARCHIVE VAULT & RESUME LOGIC ----------------
     function openVaultScreen() {
         document.getElementById('setup-screen').classList.add('hidden');
         document.getElementById('archive-view-screen').classList.add('hidden');
@@ -1612,7 +1644,7 @@
 
             if (r.byesApplied && r.byesApplied.length > 0) {
                 html += `<div style="margin-top: 5px; font-size: 13px; color: var(--text-muted)">
-                    <strong>Rests Awarded:</strong> ${r.byesApplied.map(b => b.name + ' (+' + b.pts + ' via ' + b.calculation + ')').join(', ') + ')'}
+                    <strong>Rests Awarded:</strong> ${r.byesApplied.map(b => b.name + ' (+' + b.pts + ' via ' + b.calculation + ')').join(', ')}
                 </div>`;
             }
             
