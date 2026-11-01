@@ -298,6 +298,60 @@
             .archive-actions { width: 100%; justify-content: flex-end; }
         }
 
+        
+        .btn-finish-crown {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: #0f172a;
+            font-weight: 800;
+            border: none;
+            margin-top: 10px;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+            transition: transform 0.15s, opacity 0.2s;
+        }
+        .btn-finish-crown:hover {
+            opacity: 0.95;
+            transform: translateY(-1px);
+        }
+        .champion-banner {
+            background: linear-gradient(135deg, #1e293b, #0f172a);
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 20px 16px;
+            text-align: center;
+            margin: 10px 0 16px;
+            box-shadow: 0 0 25px rgba(245, 158, 11, 0.35);
+            animation: pulseGlow 2s infinite alternate;
+        }
+        @keyframes pulseGlow {
+            from { box-shadow: 0 0 15px rgba(245, 158, 11, 0.25); }
+            to { box-shadow: 0 0 30px rgba(245, 158, 11, 0.55); }
+        }
+        .champion-banner h3 {
+            color: #f59e0b;
+            margin: 0 0 8px;
+            font-size: 20px;
+            letter-spacing: 0.5px;
+        }
+        .champion-banner .champ-name {
+            font-size: 26px;
+            font-weight: 800;
+            color: #ffffff;
+            margin: 6px 0;
+        }
+        .champion-banner .champ-stats {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+        #confetti-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 100000;
+        }
+
         /* Tables & Lists */
         .table-responsive { width: 100%; overflow-x: auto; }
         .leaderboard-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 15px; }
@@ -342,6 +396,8 @@
     </style>
 </head>
 <body>
+
+<canvas id="confetti-canvas"></canvas>
 
 <div id="toast-notification" class="toast">Round recorded successfully! Standings updated.</div>
 
@@ -445,16 +501,28 @@
 
     <!-- TAB 1: ACTIVE ROUND -->
     <div id="content-active" class="tab-content">
-        <h1 id="round-title" style="margin-bottom:5px;">Round 1</h1>
-        <p id="multiplier-info" style="text-align:center; margin:0 0 15px; color:var(--text-muted); font-size:13px; font-style:italic;"></p>
-        
-        <h3 style="font-size:17px; text-align:left; margin-bottom:5px;">Active Courts Layout</h3>
-        <div id="courts-container"></div>
-        <button onclick="submitRound()">Submit Round & Re-rank</button>
+        <div id="tournament-completed-banner" class="hidden">
+            <div class="champion-banner">
+                <h3>🏆 TOURNAMENT COMPLETED 🏆</h3>
+                <div class="champ-stats">All scheduled rounds have concluded. Check the Leaderboard tab for final standings and crowned champion!</div>
+            </div>
+            <button class="btn-secondary" onclick="switchTab('leaderboard')">View Final Leaderboard</button>
+        </div>
+
+        <div id="round-active-container">
+            <h1 id="round-title" style="margin-bottom:5px;">Round 1</h1>
+            <p id="multiplier-info" style="text-align:center; margin:0 0 15px; color:var(--text-muted); font-size:13px; font-style:italic;"></p>
+            
+            <h3 style="font-size:17px; text-align:left; margin-bottom:5px;">Active Courts Layout</h3>
+            <div id="courts-container"></div>
+            <button onclick="submitRound()">Submit Round & Re-rank</button>
+            <button id="btn-finish-crown-action" class="btn-finish-crown" onclick="manualFinishTournament()">🏆 Finish Tournament & Crown Winner</button>
+        </div>
     </div>
 
     <!-- TAB 2: LEADERBOARD -->
     <div id="content-leaderboard" class="tab-content hidden">
+        <div id="leaderboard-champion-podium" class="hidden"></div>
         <h2>Leaderboard Standings</h2>
         <div class="table-responsive">
             <table class="leaderboard-table">
@@ -555,6 +623,7 @@
     let tournamentName = "";
     let tournamentDate = "";
     let tournamentId = "";
+    let isTournamentFinished = false;
 
     let beatTheBoxPositions = {};
     let roundActiveMatches = [];
@@ -896,13 +965,26 @@
         if (badge) badge.innerText = list.length;
     }
 
+    function getWinnerObject() {
+        if (!participants || participants.length === 0) return null;
+        let displayList = [...participants].sort((a, b) => {
+            if (format === 'beat-the-box') {
+                if (a.currentBox !== b.currentBox) return a.currentBox - b.currentBox;
+            }
+            if (b.points !== a.points) return b.points - a.points;
+            const diffA = a.points - (a.pointsLost || 0);
+            const diffB = b.points - (b.pointsLost || 0);
+            if (diffB !== diffA) return diffB - diffA;
+            if (b.wins !== a.wins) return b.wins - a.wins;
+            return a.losses - b.losses;
+        });
+        return displayList[0];
+    }
+
     function autoSaveCurrentTournament() {
         if (!tournamentId) return;
         let list = getSavedTournaments();
-        const winner = [...participants].sort((a,b) => {
-            if (b.points !== a.points) return b.points - a.points;
-            return (b.points - b.pointsLost) - (a.points - a.pointsLost);
-        })[0];
+        const winner = getWinnerObject();
 
         const record = {
             id: tournamentId,
@@ -914,6 +996,7 @@
             currentRound: currentRound,
             totalRoundsPlayed: currentRound > 1 ? currentRound - 1 : 0,
             winner: winner ? winner.name : "-",
+            isFinished: isTournamentFinished,
             participants: participants,
             beatTheBoxPositions: beatTheBoxPositions,
             roundActiveMatches: roundActiveMatches,
@@ -954,6 +1037,7 @@
         tournamentName = document.getElementById('tournament-name').value.trim() || (`${formatTitleName(format)} - ${formatDisplayDate(new Date())}`);
         tournamentDate = document.getElementById('tournament-date').value || new Date().toISOString().split('T')[0];
         tournamentId = "tourney_" + Date.now();
+        isTournamentFinished = false;
 
         const isTeam = isTeamFormat(format);
         const minRequired = isTeam ? (totalCourts * 2) : (totalCourts * 4);
@@ -1008,12 +1092,29 @@
 
         document.getElementById('th-name-label').innerText = isTeamFormat() ? "Team Name" : "Player";
 
+        // Show/hide manual finish button depending on format
+        const finishActionBtn = document.getElementById('btn-finish-crown-action');
+        if (finishActionBtn) {
+            if (format === 'americano' || format === 'team-americano') {
+                finishActionBtn.classList.add('hidden');
+            } else {
+                finishActionBtn.classList.remove('hidden');
+            }
+        }
+
         document.getElementById('setup-screen').classList.add('hidden');
         document.getElementById('vault-screen').classList.add('hidden');
         document.getElementById('archive-view-screen').classList.add('hidden');
         document.getElementById('tournament-screen').classList.remove('hidden');
 
-        switchTab('active');
+        if (isTournamentFinished) {
+            displayTournamentFinishedState();
+            switchTab('leaderboard');
+        } else {
+            document.getElementById('tournament-completed-banner').classList.add('hidden');
+            document.getElementById('round-active-container').classList.remove('hidden');
+            switchTab('active');
+        }
     }
 
     function switchTab(tabId) {
@@ -1087,11 +1188,13 @@
         } else if (format === 'mexicano') {
             infoStr = "Standard Mexicano: Individual rank-seeded courts with dynamic partner shuffle.";
         } else if (format === 'americano') {
-            infoStr = "Standard Americano: Social random partner rotation across all courts.";
+            const maxR = calculateTotalAmericanoRounds();
+            infoStr = `Standard Americano: Social random partner rotation across all courts (Round ${currentRound} of ${maxR}).`;
         } else if (format === 'team-mexicano') {
             infoStr = "Team Mexicano: Fixed partner duos seeded onto courts strictly by team leaderboard rank.";
         } else if (format === 'team-americano') {
-            infoStr = "Team Americano: Fixed partner duos matched up with balanced opponent rotation.";
+            const maxR = calculateTotalAmericanoRounds();
+            infoStr = `Team Americano: Fixed partner duos matched with balanced opponent rotation (Round ${currentRound} of ${maxR}).`;
         } else if (format === 'beat-the-box') {
             infoStr = "Beat the Box: Box 1 is the Top Court. Match winners move UP (towards Box 1), losers move DOWN!";
         }
@@ -1286,6 +1389,105 @@
         }
     }
 
+    
+    function calculateTotalAmericanoRounds() {
+        const count = participants.length;
+        if (format === 'team-americano' || format === 'americano') {
+            return (count % 2 === 0) ? (count - 1) : count;
+        }
+        return 9999;
+    }
+
+    function manualFinishTournament() {
+        if (confirm("End this tournament and crown the champion based on current standings?")) {
+            triggerTournamentFinish(false);
+        }
+    }
+
+    function triggerTournamentFinish(isAutoCompleted = false) {
+        isTournamentFinished = true;
+        autoSaveCurrentTournament();
+        renderLeaderboard();
+        displayTournamentFinishedState();
+        switchTab('leaderboard');
+        triggerVictoryCelebration();
+
+        if (isAutoCompleted) {
+            showAutoDismissToast("All rounds completed! Tournament champion crowned!");
+        } else {
+            showAutoDismissToast("Tournament concluded! Champion crowned!");
+        }
+    }
+
+    function displayTournamentFinishedState() {
+        document.getElementById('tournament-completed-banner').classList.remove('hidden');
+        document.getElementById('round-active-container').classList.add('hidden');
+        
+        const winner = getWinnerObject();
+        const podium = document.getElementById('leaderboard-champion-podium');
+        if (winner && podium) {
+            podium.classList.remove('hidden');
+            const diff = winner.points - (winner.pointsLost || 0);
+            const diffSign = diff > 0 ? '+' : '';
+            podium.innerHTML = `
+                <div class="champion-banner">
+                    <h3>🏆 TOURNAMENT CHAMPION 🏆</h3>
+                    <div class="champ-name">${winner.name}</div>
+                    <div class="champ-stats">${winner.points} Pts Won &nbsp;|&nbsp; Diff: ${diffSign}${diff} &nbsp;|&nbsp; Matches: ${winner.wins}W - ${winner.ties}T - ${winner.losses}L</div>
+                </div>
+            `;
+        }
+    }
+
+    function triggerVictoryCelebration() {
+        const canvas = document.getElementById('confetti-canvas');
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const pieces = [];
+        const numPieces = 150;
+        const colors = ['#f59e0b', '#10b981', '#3b82f6', '#ec4899', '#8b5cf6', '#ffffff'];
+
+        for (let i = 0; i < numPieces; i++) {
+            pieces.push({
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height - canvas.height,
+                size: Math.random() * 8 + 4,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                speedY: Math.random() * 3 + 2,
+                speedX: Math.random() * 2 - 1,
+                rotation: Math.random() * 360,
+                rotationSpeed: Math.random() * 4 - 2
+            });
+        }
+
+        const startTime = Date.now();
+        function drawConfetti() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            pieces.forEach(p => {
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate((p.rotation * Math.PI) / 180);
+                ctx.fillStyle = p.color;
+                ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size);
+                ctx.restore();
+
+                p.y += p.speedY;
+                p.x += p.speedX;
+                p.rotation += p.rotationSpeed;
+            });
+
+            if (Date.now() - startTime < 4500) {
+                requestAnimationFrame(drawConfetti);
+            } else {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+            }
+        }
+        drawConfetti();
+    }
+
     function submitRound() {
         for (let i = 0; i < roundActiveMatches.length; i++) {
             const t1 = parseInt(document.getElementById('score-' + i + '-t1').value);
@@ -1401,6 +1603,13 @@
 
         matchHistoryLog.push(roundLogItem);
         appendHistoryView();
+
+        // Check if Americano formats have completed their full round-robin
+        const maxAmericanoRounds = calculateTotalAmericanoRounds();
+        if ((format === 'americano' || format === 'team-americano') && currentRound >= maxAmericanoRounds) {
+            triggerTournamentFinish(true);
+            return;
+        }
 
         currentRound++;
         generateRound();
@@ -1565,6 +1774,7 @@
         maxPoints = t.maxPoints || 16;
         totalCourts = t.totalCourts || 2;
         currentRound = t.currentRound || ((t.totalRoundsPlayed || 0) + 1);
+        isTournamentFinished = !!t.isFinished;
         participants = t.participants || t.players || [];
         beatTheBoxPositions = t.beatTheBoxPositions || {};
         matchHistoryLog = t.matchHistory || [];
