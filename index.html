@@ -243,7 +243,6 @@
             .format-popover { left: 10px; right: 10px; max-width: none; width: auto; font-size: 12px; padding: 8px 12px; }
             button { padding: 11px; font-size: 14px; margin-top: 14px; }
             .tabs { margin-bottom: 14px; }
-            .tab-btn { padding: 10px 4px; font-size: 12px; }
             .court-block { padding: 10px; margin-top: 12px; }
             .score-input { width: 50px; padding: 6px; font-size: 16px; }
             .leaderboard-table th, .leaderboard-table td { padding: 7px 4px; font-size: 12px; }
@@ -304,6 +303,45 @@
             z-index: 100000;
         }
 
+        /* Tabs System styling: strictly row, no wrapping, single line */
+        .tabs { 
+            display: flex !important; 
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            margin-bottom: 20px; 
+            border-bottom: 2px solid #334155; 
+            width: 100%; 
+            gap: 6px; 
+            box-sizing: border-box;
+        }
+        .tab-btn { 
+            flex: 1 1 0% !important; 
+            width: auto !important;
+            min-width: 0 !important;
+            background: #1e293b; 
+            color: var(--text-muted); 
+            border: none; 
+            padding: 12px 4px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 14px; 
+            border-radius: 6px 6px 0 0; 
+            transition: 0.2s;
+            margin-top: 0 !important;
+            text-align: center;
+            white-space: nowrap !important;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: block;
+        }
+        .tab-btn:hover { background: #2d3748; color: var(--text); }
+        .tab-btn.active { background: var(--accent); color: white; }
+        .tab-content { width: 100%; }
+
+        @media (max-width: 600px) {
+            .tab-btn { font-size: 12px; padding: 10px 2px; }
+        }
+
         /* Tables & Lists */
         .table-responsive { width: 100%; overflow-x: auto; }
         .leaderboard-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 15px; }
@@ -350,8 +388,6 @@
 <body>
 
 <canvas id="confetti-canvas"></canvas>
-
-<div id="toast-notification" class="toast">Round recorded successfully! Standings updated.</div>
 
 <!-- 1. SETUP / HOME SCREEN -->
 <div class="container" id="setup-screen">
@@ -443,7 +479,7 @@
         <span id="active-tourney-display-date" style="font-size:13px; color:var(--text-muted);">2026-11-01</span>
     </div>
 
-    <!-- Navigation Tabs -->
+    <!-- Navigation Tabs (strictly in one line) -->
     <div class="tabs">
         <button class="tab-btn active" id="tab-active" onclick="switchTab('active')">Active Round</button>
         <button class="tab-btn" id="tab-leaderboard" onclick="switchTab('leaderboard')">Leaderboard</button>
@@ -496,11 +532,17 @@
         </div>
     </div>
 
-    <!-- TAB 3: MATCH HISTORY -->
+    <!-- TAB 3: MATCH HISTORY & UPCOMING SCHEDULE -->
     <div id="content-history" class="tab-content hidden">
         <h2>Completed Match Logs</h2>
         <div id="history-container">
             <p style="color:var(--text-muted); text-align:center; font-style:italic;">No matches played yet.</p>
+        </div>
+        
+        <!-- Pre-populated upcoming rounds view for Americano formats -->
+        <div id="upcoming-schedule-container" style="margin-top:25px;" class="hidden">
+            <h2 style="color:var(--accent);">Upcoming Rounds Schedule</h2>
+            <div id="upcoming-schedule-list"></div>
         </div>
     </div>
 
@@ -580,12 +622,12 @@
     let roundActiveMatches = [];
     let matchHistoryLog = [];
     let sittingOutThisRound = [];
-    let toastTimeout = null;
 
     let partnerCountMatrix = {};
     let lastPartnerRound = {};
     let teamOpponentCount = {};
     let lastTeamOpponentRound = {};
+    let fullPrecomputedSchedule = [];
 
     let currentlyViewingArchiveId = null;
 
@@ -821,7 +863,7 @@
             pLabel.innerText = "Enter Teams";
             countLabel.innerText = "Number of Teams";
             pHint.innerText = `Beat the Box (King of Court): Box 1 is Top Court. Winners move UP a box, Losers move DOWN. Min ${courtCount * 2} teams for ${courtCount} court(s). Press Enter to advance.`;
-            fDesc.innerText = "King of the Court ladder: Court 1 is Box 1 (Top). Winners move UP, Losers move DOWN. The goal is to hold Box 1!";
+            fDesc.innerText = "King of the Court ladder: Court 1 is Box 1 (Top). Winners move UP, Losers move DOWN. Finish whenever your group decides!";
         } else {
             pLabel.innerText = "Enter Player Names";
             countLabel.innerText = "Number of Players";
@@ -830,7 +872,7 @@
                 ? "Individual Super Mexicano: Rotating partners. Multipliers: Flat 1.0x (Rd 1-2), 1.1x (Rd 3), 1.2x (Rd 4+)."
                 : (fmt === 'mexicano' 
                     ? "Individual Mexicano: Rotating partners. Seeded by rank with flat 1.0x scoring." 
-                    : "Individual Americano: Rotating partners with social mixed pairings. Concludes when all players partner with each other.");
+                    : "Individual Americano: Rotating partners. Tournament automatically concludes once everyone partners with each other.");
         }
 
         const count = populateParticipantCountDropdown();
@@ -880,16 +922,8 @@
         const k = partnerKey(tA, tB);
         return {
             count: teamOpponentCount[k] || 0,
-            lastTeamOpponentRound: lastTeamOpponentRound[k] !== undefined ? lastTeamOpponentRound[k] : -999
+            lastRound: lastTeamOpponentRound[k] !== undefined ? lastTeamOpponentRound[k] : -999
         };
-    }
-
-    function showAutoDismissToast(message) {
-        const toast = document.getElementById('toast-notification');
-        toast.innerText = message;
-        toast.classList.add('show');
-        if (toastTimeout) clearTimeout(toastTimeout);
-        toastTimeout = setTimeout(() => { toast.classList.remove('show'); }, 2000);
     }
 
     function getSavedTournaments() {
@@ -948,6 +982,7 @@
             roundActiveMatches: roundActiveMatches,
             sittingOutThisRound: sittingOutThisRound,
             matchHistory: matchHistoryLog,
+            fullPrecomputedSchedule: fullPrecomputedSchedule,
             partnerCountMatrix: partnerCountMatrix,
             lastPartnerRound: lastPartnerRound,
             teamOpponentCount: teamOpponentCount,
@@ -976,6 +1011,91 @@
             return (count % 2 === 0) ? (count - 1) : count;
         }
         return 9999;
+    }
+
+    /* Pre-compute full Americano / Team Americano round-robin schedule */
+    function buildFullAmericanoSchedule() {
+        fullPrecomputedSchedule = [];
+        if (format !== 'team-americano' && format !== 'americano') return;
+
+        const count = participants.length;
+        let items = [...participants];
+        let n = items.length;
+        if (n % 2 !== 0) {
+            items.push(null); // Dummy element for bye
+            n++;
+        }
+
+        const totalRounds = n - 1;
+        let currentList = [...items];
+
+        for (let r = 0; r < totalRounds; r++) {
+            let pairs = [];
+            let roundByes = [];
+
+            for (let i = 0; i < n / 2; i++) {
+                let a = currentList[i];
+                let b = currentList[n - 1 - i];
+                if (!a) { if (b) roundByes.push(b); }
+                else if (!b) { if (a) roundByes.push(a); }
+                else { pairs.push([a, b]); }
+            }
+
+            if (format === 'team-americano') {
+                let matches = [];
+                for (let c = 0; c < totalCourts && c < pairs.length; c++) {
+                    matches.push({
+                        courtNum: c + 1,
+                        team1Id: pairs[c][0].id,
+                        team2Id: pairs[c][1].id,
+                        p1: pairs[c][0].name,
+                        p2: "",
+                        p3: pairs[c][1].name,
+                        p4: ""
+                    });
+                }
+                let extraByes = [];
+                if (pairs.length > totalCourts) {
+                    for (let c = totalCourts; c < pairs.length; c++) {
+                        extraByes.push(pairs[c][0]);
+                        extraByes.push(pairs[c][1]);
+                    }
+                }
+                fullPrecomputedSchedule.push({
+                    round: r + 1,
+                    matches: matches,
+                    byes: [...roundByes, ...extraByes]
+                });
+            } else {
+                // Individual Americano: Quad grouping of 4 players per court
+                let activeIndividuals = [];
+                pairs.forEach(pr => { activeIndividuals.push(pr[0]); activeIndividuals.push(pr[1]); });
+                
+                let matches = [];
+                let courtIdx = 0;
+                while (activeIndividuals.length >= 4 && courtIdx < totalCourts) {
+                    let c4 = activeIndividuals.splice(0, 4);
+                    // Standard Mexicano/Americano pairing solver
+                    let best = chooseBestPairingOnCourt(c4);
+                    matches.push({
+                        courtNum: courtIdx + 1,
+                        p1: best.p1.name,
+                        p2: best.p2.name,
+                        p3: best.p3.name,
+                        p4: best.p4.name
+                    });
+                    courtIdx++;
+                }
+                fullPrecomputedSchedule.push({
+                    round: r + 1,
+                    matches: matches,
+                    byes: [...roundByes, ...activeIndividuals]
+                });
+            }
+
+            // Circle method rotation (keep index 0 fixed, rotate remainder)
+            currentList = [currentList[0], currentList[currentList.length - 1], ...currentList.slice(1, currentList.length - 1)];
+        }
     }
 
     function startTournament() {
@@ -1033,6 +1153,10 @@
             });
         }
 
+        if (format === 'americano' || format === 'team-americano') {
+            buildFullAmericanoSchedule();
+        }
+
         launchTournamentScreen();
         generateRound();
         autoSaveCurrentTournament();
@@ -1060,7 +1184,6 @@
         document.getElementById('archive-view-screen').classList.add('hidden');
         document.getElementById('tournament-screen').classList.remove('hidden');
 
-        // CRITICAL: Scope champion podium display exclusively to completed tournaments
         const podium = document.getElementById('leaderboard-champion-podium');
         if (isTournamentFinished) {
             displayTournamentFinishedState();
@@ -1082,6 +1205,10 @@
         
         document.getElementById('tab-' + tabId).classList.add('active');
         document.getElementById('content-' + tabId).classList.remove('hidden');
+
+        if (tabId === 'history') {
+            appendHistoryView();
+        }
     }
 
     function getMultipliersForRound(roundNum) {
@@ -1166,6 +1293,18 @@
         document.getElementById('multiplier-info').innerText = infoStr;
 
         const isTeam = isTeamFormat();
+
+        // If pre-computed schedule exists for Americano formats:
+        if ((format === 'team-americano' || format === 'americano') && fullPrecomputedSchedule.length >= currentRound) {
+            const planned = fullPrecomputedSchedule[currentRound - 1];
+            roundActiveMatches = planned.matches;
+            sittingOutThisRound = planned.byes || [];
+            renderRoundLayout();
+            renderLeaderboard();
+            appendHistoryView();
+            return;
+        }
+
         const activeUnitsNeeded = isTeam ? (totalCourts * 2) : (totalCourts * 4);
         const sittingCount = participants.length - activeUnitsNeeded;
 
@@ -1235,36 +1374,14 @@
                     p4: ""
                 });
             }
-        } else if (format === 'team-americano') {
-            active.sort(() => Math.random() - 0.5);
-
-            for (let i = 0; i < totalCourts; i++) {
-                const startIdx = i * 2;
-                const t1 = active[startIdx];
-                const t2 = active[startIdx + 1];
-
-                roundActiveMatches.push({
-                    courtNum: i + 1,
-                    team1Id: t1.id,
-                    team2Id: t2.id,
-                    p1: t1.name,
-                    p2: "",
-                    p3: t2.name,
-                    p4: ""
-                });
-            }
         } else {
-            if (format === 'americano') {
-                active.sort(() => Math.random() - 0.5);
-            } else {
-                active.sort((a, b) => {
-                    if (b.points !== a.points) return b.points - a.points;
-                    const diffA = a.points - a.pointsLost;
-                    const diffB = b.points - b.pointsLost;
-                    if (diffB !== diffA) return diffB - diffA;
-                    return b.wins - a.wins;
-                });
-            }
+            active.sort((a, b) => {
+                if (b.points !== a.points) return b.points - a.points;
+                const diffA = a.points - a.pointsLost;
+                const diffB = b.points - b.pointsLost;
+                if (diffB !== diffA) return diffB - diffA;
+                return b.wins - a.wins;
+            });
 
             for (let i = 0; i < totalCourts; i++) {
                 const startIdx = i * 4;
@@ -1283,6 +1400,7 @@
 
         renderRoundLayout();
         renderLeaderboard();
+        appendHistoryView();
     }
 
     function renderRoundLayout() {
@@ -1354,14 +1472,6 @@
         }
     }
 
-    function calculateTotalAmericanoRounds() {
-        const count = participants.length;
-        if (format === 'team-americano' || format === 'americano') {
-            return (count % 2 === 0) ? (count - 1) : count;
-        }
-        return 9999;
-    }
-
     function manualFinishTournament() {
         if (confirm("End this tournament and crown the champion based on current standings?")) {
             triggerTournamentFinish(false);
@@ -1375,12 +1485,6 @@
         displayTournamentFinishedState();
         switchTab('leaderboard');
         triggerVictoryCelebration();
-
-        if (isAutoCompleted) {
-            showAutoDismissToast("All rounds completed! Tournament champion crowned!");
-        } else {
-            showAutoDismissToast("Tournament concluded! Champion crowned!");
-        }
     }
 
     function displayTournamentFinishedState() {
@@ -1566,7 +1670,6 @@
         });
 
         matchHistoryLog.push(roundLogItem);
-        appendHistoryView();
 
         // Check if Americano formats have completed their full round-robin
         const maxAmericanoRounds = calculateTotalAmericanoRounds();
@@ -1578,7 +1681,6 @@
         currentRound++;
         generateRound();
         autoSaveCurrentTournament();
-        showAutoDismissToast("Round recorded & auto-saved! Standings updated.");
     }
 
     function updateParticipant(name, ptsWon, ptsLost, outcome) {
@@ -1612,7 +1714,7 @@
             const diffSign = diff > 0 ? '+' : '';
             const boxBadge = format === 'beat-the-box' ? `<span class="badge" style="background:#3b82f6; margin-left:6px;">Box ${p.currentBox || '-'}</span>` : '';
             
-            // Only show crown and highlight if the tournament is actually completed
+            // Only show crown and golden highlight if the tournament is finished!
             const isCrown = isTournamentFinished && idx === 0;
             const rankBadge = isCrown ? '👑 #1' : `#${idx + 1}`;
             const rowStyle = isCrown ? 'background: rgba(245, 158, 11, 0.12);' : '';
@@ -1638,41 +1740,80 @@
         const histContainer = document.getElementById('history-container');
         if (!matchHistoryLog || matchHistoryLog.length === 0) {
             histContainer.innerHTML = '<p style="color:var(--text-muted); text-align:center; font-style:italic;">No matches played yet.</p>';
-            return;
+        } else {
+            let html = '';
+            [...matchHistoryLog].reverse().forEach(r => {
+                html += `<div class="history-item">
+                    <div class="history-round-title">Round ${r.round} Results</div>`;
+                
+                r.matches.forEach(m => {
+                    html += `<div style="margin-bottom: 8px; border-bottom: 1px solid #2d3748; padding-bottom: 4px;">
+                        <div class="history-court-line">
+                            <strong>Court ${m.court}:</strong>
+                            <span>${m.team1} <strong>(${m.score1})</strong> vs <strong>(${m.score2})</strong> ${m.team2}</span>
+                        </div>
+                        <div class="history-points-breakdown">
+                            Multiplier ${m.mUsed}x: Team 1 = +${m.wScore1} | Team 2 = +${m.wScore2}
+                        </div>
+                    </div>`;
+                });
+
+                if (r.byesApplied && r.byesApplied.length > 0) {
+                    html += `<div style="margin-top: 5px; font-size: 13px; color: var(--text-muted)">
+                        <strong>Rests Awarded:</strong> ${r.byesApplied.map(b => b.name + ' (+' + b.pts + ' via ' + b.calculation + ')').join(', ')}
+                    </div>`;
+                }
+                
+                html += '</div>';
+            });
+            histContainer.innerHTML = html;
         }
 
-        let html = '';
-        [...matchHistoryLog].reverse().forEach(r => {
-            html += `<div class="history-item">
-                <div class="history-round-title">Round ${r.round} Results</div>`;
-            
-            r.matches.forEach(m => {
-                html += `<div style="margin-bottom: 8px; border-bottom: 1px solid #2d3748; padding-bottom: 4px;">
-                    <div class="history-court-line">
-                        <strong>Court ${m.court}:</strong>
-                        <span>${m.team1} <strong>(${m.score1})</strong> vs <strong>(${m.score2})</strong> ${m.team2}</span>
-                    </div>
-                    <div class="history-points-breakdown">
-                        Multiplier ${m.mUsed}x: Team 1 = +${m.wScore1} | Team 2 = +${m.wScore2}
-                    </div>
-                </div>`;
+        // Render upcoming rounds schedule for Americano & Team Americano
+        const schedContainer = document.getElementById('upcoming-schedule-container');
+        const schedList = document.getElementById('upcoming-schedule-list');
+        if ((format === 'americano' || format === 'team-americano') && fullPrecomputedSchedule && fullPrecomputedSchedule.length > 0 && !isTournamentFinished) {
+            schedContainer.classList.remove('hidden');
+            let futureHtml = '';
+            const isTeam = isTeamFormat();
+
+            fullPrecomputedSchedule.forEach(rnd => {
+                if (rnd.round >= currentRound) {
+                    const isNext = rnd.round === currentRound;
+                    futureHtml += `
+                        <div class="history-item" style="${isNext ? 'border: 1px solid var(--accent);' : 'opacity: 0.85;'}">
+                            <div class="history-round-title" style="display:flex; justify-content:space-between;">
+                                <span>Round ${rnd.round} Schedule</span>
+                                ${isNext ? '<span class="badge" style="background:var(--accent);">Current Round</span>' : ''}
+                            </div>
+                    `;
+                    rnd.matches.forEach(m => {
+                        const t1 = isTeam ? m.p1 : `${m.p1} & ${m.p2}`;
+                        const t2 = isTeam ? m.p3 : `${m.p3} & ${m.p4}`;
+                        futureHtml += `
+                            <div class="history-court-line" style="padding: 3px 0;">
+                                <strong>Court ${m.courtNum}:</strong>
+                                <span>${t1} <span style="color:var(--text-muted); font-size:12px;">vs</span> ${t2}</span>
+                            </div>
+                        `;
+                    });
+                    if (rnd.byes && rnd.byes.length > 0) {
+                        const byeNames = rnd.byes.map(b => (b ? b.name : '')).filter(n => n.length > 0).join(', ');
+                        if (byeNames.length > 0) {
+                            futureHtml += `<div style="margin-top: 4px; font-size: 12px; color: var(--text-muted)"><em>Sitting Out: ${byeNames}</em></div>`;
+                        }
+                    }
+                    futureHtml += `</div>`;
+                }
             });
-
-            if (r.byesApplied && r.byesApplied.length > 0) {
-                html += `<div style="margin-top: 5px; font-size: 13px; color: var(--text-muted)">
-                    <strong>Rests Awarded:</strong> ${r.byesApplied.map(b => b.name + ' (+' + b.pts + ' via ' + b.calculation + ')').join(', ')}
-                </div>`;
-            }
-            
-            html += '</div>';
-        });
-
-        histContainer.innerHTML = html;
+            schedList.innerHTML = futureHtml || '<p style="color:var(--text-muted); text-align:center;">No upcoming rounds remaining.</p>';
+        } else {
+            schedContainer.classList.add('hidden');
+        }
     }
 
     function finishAndSaveTournament() {
         autoSaveCurrentTournament();
-        showAutoDismissToast("Tournament saved! You can resume it anytime from the Archives.");
         document.getElementById('tournament-screen').classList.add('hidden');
         document.getElementById('setup-screen').classList.remove('hidden');
         updateArchiveCountBadge();
@@ -1749,6 +1890,7 @@
         participants = t.participants || t.players || [];
         beatTheBoxPositions = t.beatTheBoxPositions || {};
         matchHistoryLog = t.matchHistory || [];
+        fullPrecomputedSchedule = t.fullPrecomputedSchedule || [];
         partnerCountMatrix = t.partnerCountMatrix || {};
         lastPartnerRound = t.lastPartnerRound || {};
         teamOpponentCount = t.teamOpponentCount || {};
@@ -1772,7 +1914,6 @@
         }
 
         appendHistoryView();
-        showAutoDismissToast("Tournament '" + tournamentName + "' loaded!");
     }
 
     function deleteTournamentRecord(id) {
@@ -1781,7 +1922,6 @@
         list = list.filter(t => t.id !== id);
         saveTournamentsToStorage(list);
         renderSavedTournamentsList();
-        showAutoDismissToast("Tournament deleted from archive.");
     }
 
     function viewTournamentDetails(id) {
@@ -1813,11 +1953,10 @@
             const diff = p.points - (p.pointsLost || 0);
             const diffSign = diff > 0 ? '+' : '';
             const boxBadge = t.format === 'beat-the-box' ? `<span class="badge" style="background:#3b82f6; margin-left:6px;">Box ${p.currentBox || '-'}</span>` : '';
-            const isCrown = t.isFinished && idx === 0;
-            const rankBadge = isCrown ? '👑 #1' : `#${idx + 1}`;
+            const isWinner = t.isFinished && idx === 0;
             return `
-                <tr style="${isCrown ? 'background: rgba(245, 158, 11, 0.12);' : ''}">
-                    <td><strong>${rankBadge}</strong></td>
+                <tr style="${isWinner ? 'background: rgba(245, 158, 11, 0.12);' : ''}">
+                    <td><strong>${isWinner ? '👑 #1' : `#${idx + 1}`}</strong></td>
                     <td><strong>${p.name}</strong>${boxBadge}</td>
                     <td style="font-weight:bold; color:var(--accent);">${p.points}</td>
                     <td style="font-weight:bold; color:#f87171;">${p.pointsLost || 0}</td>
