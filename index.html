@@ -631,18 +631,9 @@
 
     let currentlyViewingArchiveId = null;
 
-    const defaultIndividualArray = [
-        "Talha", "Ayyoub", "Qatadah", "Hani", "Fouz", 
-        "Osaama", "Mohammed", "Marzouq", "Hisham"
-    ];
-
-    const defaultTeamArray = [
-        "Team Alpha (Talha & Ayyoub)",
-        "Team Bravo (Qatadah & Hani)",
-        "Team Charlie (Fouz & Osaama)",
-        "Team Delta (Mohammed & Marzouq)",
-        "Team Echo (Hisham & Faisal)"
-    ];
+    // Start with clean blank participant rosters
+    const defaultIndividualArray = [];
+    const defaultTeamArray = [];
 
     function getOrdinalSuffix(day) {
         if (day > 3 && day < 21) return 'th';
@@ -757,7 +748,7 @@
 
         let currentVal = desiredCount !== null ? desiredCount : parseInt(countSelect.value);
         if (isNaN(currentVal) || currentVal < minRequired) {
-            currentVal = isTeam ? Math.max(minRequired, defaultTeamArray.length) : Math.max(minRequired, defaultIndividualArray.length);
+            currentVal = minRequired;
         }
 
         let optionsHtml = '';
@@ -788,16 +779,7 @@
 
         let html = '';
         for (let i = 1; i <= count; i++) {
-            let val = '';
-            if (existing[i - 1]) {
-                val = existing[i - 1];
-            } else {
-                if (isTeam && defaultTeamArray[i - 1]) {
-                    val = defaultTeamArray[i - 1];
-                } else if (!isTeam && defaultIndividualArray[i - 1]) {
-                    val = defaultIndividualArray[i - 1];
-                }
-            }
+            let val = existing[i - 1] || '';
             const placeholder = isTeam ? `Team ${i} (P1 & P2)` : `Player ${i}`;
             html += `
                 <div class="participant-pill">
@@ -855,7 +837,7 @@
         if (fmt === 'team-mexicano' || fmt === 'team-americano') {
             pLabel.innerText = "Enter Teams";
             countLabel.innerText = "Number of Teams";
-            pHint.innerText = `Requires at least ${courtCount * 2} teams (2 teams per court) for ${courtCount} court(s). Enter partners in each box (e.g. 'Talha & Ayyoub'). Press Enter to advance.`;
+            pHint.innerText = `Requires at least ${courtCount * 2} teams (2 teams per court) for ${courtCount} court(s). Enter partners in each box (e.g. 'Partner 1 & Partner 2'). Press Enter to advance.`;
             fDesc.innerText = fmt === 'team-mexicano' 
                 ? "Fixed Duos: Teams stay together all tournament. Matchups seeded by leaderboard standings."
                 : "Fixed Duos: Teams stay together all tournament. Full schedule generated with zero repeat matches until everyone plays each other.";
