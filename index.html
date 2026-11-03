@@ -1235,7 +1235,7 @@
     }
 
     function getMultipliersForRound(roundNum) {
-        if (format !== 'super-mexicano') {
+        if (format !== 'super-mexicano' || totalCourts <= 1) {
             return { c1: 1.0, c2: 1.0, others: 1.0 };
         }
         if (roundNum <= 2) {
@@ -1286,7 +1286,8 @@
         
         let infoStr = "";
         if (format === 'super-mexicano') {
-            if (currentRound <= 2) infoStr = "Round " + currentRound + ": Flat 1.0x baseline evaluation on all courts.";
+            if (totalCourts <= 1) infoStr = "Super Mexicano (1 Court): Standard 1.0x scoring (court multipliers apply when 2+ courts are active).";
+            else if (currentRound <= 2) infoStr = "Round " + currentRound + ": Flat 1.0x baseline evaluation on all courts.";
             else if (currentRound === 3) infoStr = "Round 3: Court 1 Multiplier = 1.1x | Other Courts = 1.0x";
             else infoStr = "Round " + currentRound + ": Court 1 Multiplier = 1.2x (Capped) | Other Courts = 1.0x";
         } else if (format === 'mexicano') {
@@ -1424,7 +1425,8 @@
             let color = varCourtColor(match.courtNum);
             
             if (format === 'super-mexicano') {
-                if (match.courtNum === 1) label = mults.c1 + 'x Multiplier';
+                if (totalCourts <= 1) label = '1.0x Multiplier';
+                else if (match.courtNum === 1) label = mults.c1 + 'x Multiplier';
                 else if (match.courtNum === 2) label = mults.c2 + 'x Multiplier';
                 else label = mults.others + 'x Multiplier';
             } else if (format === 'beat-the-box') {
