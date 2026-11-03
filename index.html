@@ -1227,7 +1227,9 @@
         document.getElementById('tab-' + tabId).classList.add('active');
         document.getElementById('content-' + tabId).classList.remove('hidden');
 
-        if (tabId === 'history') {
+        if (tabId === 'leaderboard') {
+            renderLeaderboard();
+        } else if (tabId === 'history') {
             appendHistoryView();
         }
     }
@@ -1501,15 +1503,49 @@
         
         const winner = getWinnerObject();
         const podium = document.getElementById('leaderboard-champion-podium');
-        if (winner && podium) {
+        const activeBanner = document.getElementById('tournament-completed-banner');
+
+        const diff = winner ? (winner.points - (winner.pointsLost || 0)) : 0;
+        const diffSign = diff > 0 ? '+' : '';
+        const bannerHtml = winner ? `
+            <div class="champion-banner">
+                <h3>🏆 TOURNAMENT CHAMPION 🏆</h3>
+                <div class="champ-name">${winner.name}</div>
+                <div class="champ-stats">${winner.points} Pts Won &nbsp;|&nbsp; Diff: ${diffSign}${diff} &nbsp;|&nbsp; Matches: ${winner.wins}W - ${winner.ties}T - ${winner.losses}L</div>
+            </div>
+        ` : '';
+
+        // Display podium above leaderboard tab
+        if (podium) {
             podium.classList.remove('hidden');
-            const diff = winner.points - (winner.pointsLost || 0);
-            const diffSign = diff > 0 ? '+' : '';
-            podium.innerHTML = `
-                <div class="champion-banner">
-                    <h3>🏆 TOURNAMENT CHAMPION 🏆</h3>
-                    <div class="champ-name">${winner.name}</div>
-                    <div class="champ-stats">${winner.points} Pts Won &nbsp;|&nbsp; Diff: ${diffSign}${diff} &nbsp;|&nbsp; Matches: ${winner.wins}W - ${winner.ties}T - ${winner.losses}L</div>
+            podium.innerHTML = bannerHtml;
+        }
+
+        // Also embed podium and full final standings table directly on the active round screen
+        if (activeBanner) {
+            activeBanner.innerHTML = `
+                ${bannerHtml}
+                <h3 style="text-align:center; color:var(--accent); margin: 20px 0 10px;">Final Leaderboard Standings</h3>
+                <div class="table-responsive">
+                    <table class="leaderboard-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>${isTeamFormat() ? 'Team' : 'Player'}</th>
+                                <th style="color:var(--accent);">Pts Won</th>
+                                <th style="color:#f87171;">Pts Lost</th>
+                                <th style="color:#38bdf8;">Diff</th>
+                                <th>Played</th>
+                                <th style="color:#10b981;">W</th>
+                                <th style="color:#eab308;">T</th>
+                                <th style="color:#ef4444;">L</th>
+                                <th style="color:var(--text-muted);">Byes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${document.getElementById('leaderboard-body') ? document.getElementById('leaderboard-body').innerHTML : ''}
+                        </tbody>
+                    </table>
                 </div>
             `;
         }
